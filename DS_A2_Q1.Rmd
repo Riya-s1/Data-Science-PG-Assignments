@@ -1,0 +1,175 @@
+---
+title: "STATS 7022 - Data Science
+Diamonds Analysis
+Assignment 2: Question 1"
+author: "Riya Sebastian"
+date: "Trimester 3, 2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+# 1 Load Libraries
+```{r packages}
+pacman::p_load(tidyverse,tidymodels,ggplot2,knitr)
+```
+
+# 2 Load Data
+```{r data}
+diamonds=readRDS("diamonds.rds")
+diamonds=tibble(diamonds)
+```
+The data is contained within the file <span style="background-color: #f8f8f8;">diamonds.rds</span>. The data is read in to R.<br>
+There are 28,274 rows in the <span style="background-color: #f8f8f8;">diamonds</span> data.
+
+# 3 Data Cleaning and Pre-processing
+# 3.1 Remove Missing Prices and Volumes
+Some rows are missing a <span style="background-color: #f8f8f8;">price</span> or <span style="background-color: #f8f8f8;">volume</span>. These rows are removed from the data.
+```{r 3.1}
+diamonds = diamonds %>% drop_na(price, volume)
+```
+There are now 28,073 rows in the diamonds data.
+
+# 3.2 Derive Cut, Colour, and Clarity
+## 3.2.1 Cut
+The first character of the variable <span style="background-color: #f8f8f8;">c.grade</span> contains information about the cut of diamonds, according to the following scheme:
+```{r 3.2.1}
+data = data.frame(
+  c.grade = c(1, 2),
+  cut = c("premium", "ideal")
+)
+kable(data, col.names = c("c.grade","cut"), align = "l") 
+```
+We derive <span style="background-color: #f8f8f8;">cut</span> from the first character of <span style="background-color: #f8f8f8;">c.grade</span>. Results are summarised in Table 3.1.
+```{r }
+diamonds$cut = ifelse(substr(diamonds$c.grade, 1, 1) == "1", "premium", 
+                       ifelse(substr(diamonds$c.grade, 1, 1) == "2", "ideal", NA))
+
+cut_counts = table(diamonds$cut)
+data = data.frame(
+  cut = names(cut_counts),
+  count = as.numeric(cut_counts)
+)
+kable(data, col.names = c("cut", "count"), caption = "Table 3.1: Number of diamonds, by cut quality.")
+
+```
+
+## 3.2.2 Colour
+The second character of the variable <span style="background-color: #f8f8f8;">c.grade</span> contains information about the colour of diamonds.<br>
+We derive <span style="background-color: #f8f8f8;">colour</span> from the second character of <span style="background-color: #f8f8f8;">c.grade</span>. Results are summarised in Table 3.2.
+```{r 3.2.2}
+diamonds$colour = substr(diamonds$c.grade, 2, 2)
+
+colour_counts = table(diamonds$colour)
+data = data.frame(
+  colour = names(colour_counts),
+  count = as.numeric(colour_counts)
+)
+kable(data, col.names = c("colour", "count"), caption = "Table 3.2: Number of diamonds, by colour.") 
+```
+
+## 3.2.3 Clarity
+The *third* character of the variable <span style="background-color: #f8f8f8;">c.grade</span> contains information about the clarity of diamonds, according to the following scheme:
+```{r 3.2.3}
+data = data.frame(
+  c.grade = 0:7,
+  clarity = c("IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1")
+)
+
+kable(data, col.names = c("c.grade", "clarity"), align = "l") 
+```
+
+We derive <span style="background-color: #f8f8f8;">clarity</span> from the third character of <span style="background-color: #f8f8f8;">c.grade</span>. Results are summarised in Table 3.3.
+
+```{r }
+diamonds = diamonds %>% 
+  mutate(clarity = recode(substr(c.grade, 3, 3), 
+                          "0" = "IF", "1" = "VVS1", "2" = "VVS2", "3" = "VS1", 
+                          "4" = "VS2", "5" = "SI1", "6" = "SI2", "7" = "I1"))
+
+clarity_counts = table(diamonds$clarity)
+data = data.frame(
+  clarity = names(clarity_counts),
+  count = as.numeric(clarity_counts)
+)
+kable(data, col.names = c("clarity", "count"), caption = "Table 3.3: Number of diamonds, by clarity.")
+```
+
+# 3.3 Select Variables
+We only need the following columns:
+
+* <span style="background-color: #f8f8f8;">cut</span>
+* <span style="background-color: #f8f8f8;">price</span>
+* <span style="background-color: #f8f8f8;">volume</span><br>
+
+All other columns are removed.
+```{r 3.3}
+diamonds = diamonds %>%
+  select(cut, price, volume)
+```
+
+# 3.4 Convert Cut to Categorical
+
+We convert <span style="background-color: #f8f8f8;">cut</span> to a categorical variable.
+```{r 3.4}
+diamonds$cut = factor(diamonds$cut)
+```
+
+# 4 Models
+
+We create two separate workflows using <span style="background-color: #f8f8f8;">tidymodels</span>:
+
+1. A logistic regression model with <span style="background-color: #f8f8f8;">cut</span> as the response variable and <span style="background-color: #f8f8f8;">price</span> as the predictor.
+
+```{r 4.1}
+diamonds_recipe1 = recipe(cut ~ price, data = diamonds) %>% step_normalize(all_predictors())
+model_spec = logistic_reg() %>% set_engine("glm")
+diamonds_wf1 = workflow() %>%
+  add_recipe(diamonds_recipe1) %>%
+  add_model(model_spec)
+diamonds_wf1
+```
+
+2. A logistic regression model with <span style="background-color: #f8f8f8;">cut</span> as the response variable and <span style="background-color: #f8f8f8;">volume</span> as the predictor.
+```{r 4.2}
+diamonds_recipe2 = recipe(cut ~ volume, data = diamonds) %>% step_normalize(all_predictors())
+model_spec = logistic_reg() %>% set_engine("glm")
+diamonds_wf2 = workflow() %>%
+  add_recipe(diamonds_recipe2) %>%
+  add_model(model_spec)
+diamonds_wf2
+
+```
+
+Both models are fitted to the <span style="background-color: #f8f8f8;">diamonds</span> data, with ROC curves displayed in Figure 5.1.
+
+# 5 ROC Curves
+```{r 5, fig.cap = 'Figure 5.1: ROC Curves for logistic regression models',fig.align='center'}
+
+fit_wf1 = fit(diamonds_wf1, data = diamonds)
+
+fit_wf2 = fit(diamonds_wf2, data = diamonds)
+
+predictions1 = predict(fit_wf1, diamonds, type = "prob") %>%
+  bind_cols(diamonds)
+
+predictions2 = predict(fit_wf2, diamonds, type = "prob") %>%
+  bind_cols(diamonds)
+
+roc_data1 = roc_curve(predictions1, truth = cut, .pred_ideal) %>%
+  mutate(model = "Price")
+
+roc_data2 = roc_curve(predictions2, truth = cut, .pred_ideal) %>%
+  mutate(model = "Volume")
+
+roc_data = bind_rows(roc_data1, roc_data2)
+ggplot(roc_data, aes(x = 1 - specificity, y = sensitivity, color = model)) +
+  geom_line() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted", color = "black") + 
+  labs(x = "1 - specificity",
+       y = "sensitivity") +
+  theme_minimal() +
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
+```

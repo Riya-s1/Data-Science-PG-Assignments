@@ -1,0 +1,95 @@
+---
+title: "QUESTION 1"
+author: "Riya Sebastian"
+date: "2024-08-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+# Loading Libraries
+```{r packages}
+pacman::p_load(tidyverse,tidymodels,ggplot2,tune)
+```
+
+# Loading Data
+```{r data}
+diamonds=readRDS("diamonds2.rds")
+diamonds=tibble(diamonds)
+diamonds
+```
+
+# Splitting the data
+```{r split}
+diamonds_split = initial_split(diamonds,prop = 0.8)
+diamonds_train = training(diamonds_split)
+diamonds_test = testing(diamonds_split)
+```
+
+# Cross validation
+```{r cv}
+diamonds_cv <- vfold_cv(diamonds_train, v = 5, strata = price)
+diamonds_cv
+```
+
+# Recipe
+```{r recipe}
+diamonds_recipe = 
+  recipe(price ~ ., data = diamonds_train) %>% 
+  step_log(price, base = 10) %>%
+  step_dummy(all_nominal_predictors()) %>% 
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors())
+
+#diamonds_recipe %>% prep() %>% bake(new_data=NULL)
+#diamonds_prepped <- diamonds_recipe %>% prep()
+#diamonds_train_baked <- bake(diamonds_prepped, new_data = diamonds_train)
+#diamonds_test_baked <- bake(diamonds_prepped, new_data = diamonds_test)
+```
+
+# Workflow
+```{r workflow}
+diamonds_model <- rand_forest(mtry = tune(),
+                          min_n = tune(),
+                          trees = 500) %>%
+  set_mode("regression") %>%
+  set_engine("ranger")
+
+diamonds_wf <- workflow() %>% 
+  add_recipe(diamonds_recipe) %>% 
+  add_model(diamonds_model)
+diamonds_wf
+```
+
+# Tuning
+```{r tuning}
+diamonds_grid = grid_regular(mtry(c(1,5)),
+                          min_n(),
+                          levels = 5)
+diamonds_grid
+
+doParallel::registerDoParallel()
+diamonds_tune = tune_grid(diamonds_wf,
+                       resamples = diamonds_cv,
+                       grid = diamonds_grid)
+
+show_best(diamonds_tune, metric = "rmse")
+
+# Selecting the best parameters
+diamonds_wf = diamonds_wf %>%
+  finalize_workflow(select_best(diamonds_tune, metric = "rmse"))
+diamonds_wf
+
+```
+
+# Model fitting
+```{r fit}
+
+diamonds_fit = diamonds_wf %>% last_fit(split = diamonds_split)
+
+# Calculating Performance Metrices
+diamonds_fit %>% collect_metrics()
+
+```

@@ -1,0 +1,83 @@
+---
+title: "QUESTION 1"
+author: "Riya Sebastian"
+date: "2024-06-12"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading necessary packages
+```{r packages}
+pacman::p_load(tidyverse,tidymodels,bookdown,ggplot2)
+```
+
+# Reading the data to a tibble
+```{r data}
+board_game=readRDS("board_game.rds")
+board_game=tibble(board_game)
+board_game
+```
+
+# a. Selecting the variables
+```{r a}
+board_game = board_game %>% select (
+  primary, year, boardgamemechanic, minplaytime, maxplaytime, average
+  )
+board_game 
+```
+
+# b. Renaming average 
+```{r b}
+board_game = board_game %>% rename (rating = average)
+board_game
+```
+
+# c. Removing games released before 2016 or after 2020
+```{r c}
+board_game = board_game[board_game$year >= 2016 & board_game$year <= 2020, ]
+board_game
+```
+
+
+# d. Creating new variable "duration" and filtering out data with duration = 0
+```{r d}
+board_game = board_game %>% mutate (duration = sqrt(minplaytime * maxplaytime))
+board_game = board_game %>% filter(duration!=0)
+board_game
+```
+
+# e. Creating a variable called dice
+```{r e}
+board_game = board_game %>%
+  mutate(dice =case_when(
+    str_detect(boardgamemechanic, "Dice") ~ "Dice game",
+    is.na (boardgamemechanic) ~"Not a dice game",
+    TRUE ~ "Not a dice game"))
+board_game
+```
+
+# f. Creating a variable called rating_7.5
+```{r f}
+board_game = board_game %>% mutate(rating_7.5 = ifelse(rating >= 7.5, TRUE, FALSE))
+board_game
+```
+
+# g. Creating a box plot
+```{r g, fig.cap = 'Note: Games without a mechanic have been classified as "Not a dice game".',fig.align='center'}
+board_game %>% 
+  ggplot(aes(x = factor(year), y = duration, fill = factor(rating_7.5))) + 
+  scale_fill_manual(values = c("FALSE" = "yellow", "TRUE" = "#1b9e77")) + 
+  geom_boxplot() +
+  scale_y_continuous(trans = 'log10', breaks = c(1, 10, 100, 1000, 10000))  +
+  labs(x= "Year", y="Duration (minutes)",fill = "Rating >= 7.5",title=
+         "Game Duration by Year", subtitle = 
+         "Colour indicates if game have a rating of 7.5 or above") + 
+  facet_wrap(~dice,ncol=1) + theme(legend.position = "bottom")
+
+```
+Figure \@ref(fig:g) Side-by-side boxplot of game duration (in minutes) by year, separated by whether or not each game is a dice game, and whether or not each game has a rating of at least 7.5.
+
+
